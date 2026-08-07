@@ -69,7 +69,9 @@ async function getLandmarks(bounds: LatLngBounds, signal: AbortSignal): Promise<
   const response = await fetch(`${WIKI_API}?${params.toString()}`, { signal });
   if (!response.ok) throw new Error(`Wikipedia returned ${response.status}`);
   const payload = await response.json() as { query?: { geosearch?: { pageid: number; title: string; lat: number; lon: number; dist: number }[] } };
-  return (payload.query?.geosearch ?? []).map(({ pageid, title, lat, lon, dist }) => ({ pageid, title, lat, lon, dist }));
+  return (payload.query?.geosearch ?? [])
+    .filter(({ lat, lon }) => bounds.contains([lat, lon]))
+    .map(({ pageid, title, lat, lon, dist }) => ({ pageid, title, lat, lon, dist }));
 }
 
 async function getArticle(pageid: number, signal: AbortSignal): Promise<Article> {
@@ -244,6 +246,10 @@ function AppHome() {
     ? 'Reading this corner of the map…'
     : `${landmarks.length} ${landmarks.length === 1 ? 'landmark' : 'landmarks'} in view`;
 
+  const formatCoordinate = (latitude: number, longitude: number) => (
+    `${Math.abs(latitude).toFixed(4)}° ${latitude >= 0 ? 'N' : 'S'} · ${Math.abs(longitude).toFixed(4)}° ${longitude >= 0 ? 'E' : 'W'}`
+  );
+
   return (
     <main className="explorer-app" data-testid="page-landmark-explorer">
       <header className="app-header">
@@ -325,7 +331,7 @@ function AppHome() {
                 <span className="landmark-index">{String(index + 1).padStart(2, '0')}</span>
                 <span>
                   <span className="landmark-name" data-testid={`text-landmark-title-${landmark.pageid}`}>{landmark.title}</span>
-                  <span className="landmark-coords" data-testid={`text-landmark-coordinates-${landmark.pageid}`}>{landmark.lat.toFixed(4)}° N · {Math.abs(landmark.lon).toFixed(4)}° W</span>
+                  <span className="landmark-coords" data-testid={`text-landmark-coordinates-${landmark.pageid}`}>{formatCoordinate(landmark.lat, landmark.lon)}</span>
                 </span>
                 <ArrowUpRight size={15} className="landmark-arrow" />
               </button>
