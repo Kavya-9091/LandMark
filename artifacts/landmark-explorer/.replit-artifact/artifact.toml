@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Landmark Explorer"
+description = "An interactive map that discovers notable local landmarks from Wikipedia within the currently visible map area."
+version = "1.0.0"
+id = "artifacts/landmark-explorer"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 19903
+
+[services.development]
+run = "pnpm --filter @workspace/landmark-explorer run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/landmark-explorer", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/landmark-explorer/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "19903"
+BASE_PATH = "/"
