@@ -386,7 +386,12 @@ function AppHome() {
             <div className="brand-kicker">A field guide to everywhere</div>
           </div>
         </div>
-        <div className="header-note"><span className="header-note-rule" /> move the map, change the story <Crosshair size={14} /></div>
+        <div className="header-actions">
+          <div className="header-note"><span className="header-note-rule" /> move the map, change the story <Crosshair size={14} /></div>
+          <button className="header-location" type="button" onClick={locateUser} disabled={geoStatus === 'locating'} data-testid="button-header-location">
+            <LocateFixed size={14} /> {geoStatus === 'locating' ? 'Finding you…' : 'Use my location'}
+          </button>
+        </div>
       </header>
 
       <div className="explorer-layout">
@@ -419,6 +424,27 @@ function AppHome() {
             </div>
           ) : null}
           <div className="map-status" data-testid="status-landmark-count">{mapStatus}</div>
+          {selected ? (
+            <section className="detail-drawer motion-in" aria-label="Selected landmark details" data-testid={`panel-landmark-detail-${selected.pageid}`}>
+              {articleState === 'loading' ? (
+                <div className="detail-loading" data-testid="status-detail-loading"><div className="skeleton-line short" /><div className="skeleton-line" /><div className="skeleton-line" /><div className="skeleton-line short" /></div>
+              ) : articleState === 'error' ? (
+                <div className="detail-inner inline-error" data-testid="status-detail-error">{articleError}<br /><button type="button" data-testid="button-close-detail-error" onClick={() => setSelectedId(null)}>Close detail</button></div>
+              ) : article ? (
+                <div className="detail-inner">
+                  <div className="detail-kicker"><span>From Wikipedia · {String(article.pageid).slice(-5)}</span><button className="detail-close" type="button" data-testid="button-close-detail" onClick={() => setSelectedId(null)}><X size={15} /></button></div>
+                  <h2 className="detail-title" data-testid={`text-detail-title-${article.pageid}`}>{article.title}</h2>
+                  {article.thumbnail?.source ? <img className="detail-image" src={article.thumbnail.source} alt={`View of ${article.title}`} data-testid={`img-detail-thumbnail-${article.pageid}`} /> : null}
+                  <p className="detail-extract" data-testid={`text-detail-extract-${article.pageid}`}>{article.extract || 'Wikipedia has not provided an introductory note for this place.'}</p>
+                  <div className="detail-coords" data-testid={`text-detail-coordinates-${article.pageid}`}><MapPin size={13} /> {selected.lat.toFixed(5)}, {selected.lon.toFixed(5)}</div>
+                  <div className="detail-actions">
+                    <a className="wiki-link" href={`https://en.wikipedia.org/?curid=${article.pageid}`} target="_blank" rel="noreferrer" data-testid={`link-wikipedia-${article.pageid}`}>Read the entry <ExternalLink size={13} /></a>
+                    <a className="maps-link" href={`https://www.openstreetmap.org/?mlat=${selected.lat}&mlon=${selected.lon}#map=16/${selected.lat}/${selected.lon}`} target="_blank" rel="noreferrer" data-testid={`link-map-${article.pageid}`}>Open in Maps <ArrowUpRight size={13} /></a>
+                  </div>
+                </div>
+              ) : null}
+            </section>
+          ) : null}
         </section>
 
         <aside className="results-pane" aria-label="Landmarks in the visible map area">
@@ -497,28 +523,6 @@ function AppHome() {
             ))}
           </div>
 
-          {selected ? (
-            <section className="detail-drawer motion-in" aria-label="Selected landmark details" data-testid={`panel-landmark-detail-${selected.pageid}`}>
-              {articleState === 'loading' ? (
-                <div className="detail-loading" data-testid="status-detail-loading"><div className="skeleton-line short" /><div className="skeleton-line" /><div className="skeleton-line" /><div className="skeleton-line short" /></div>
-              ) : articleState === 'error' ? (
-                <div className="detail-inner inline-error" data-testid="status-detail-error">{articleError}<br /><button type="button" data-testid="button-close-detail-error" onClick={() => setSelectedId(null)}>Close detail</button></div>
-              ) : article ? (
-                <div className="detail-inner">
-                  <div className="detail-kicker"><span>Field note · {String(article.pageid).slice(-5)}</span><button className="detail-close" type="button" data-testid="button-close-detail" onClick={() => setSelectedId(null)}><X size={15} /></button></div>
-                  <h2 className="detail-title" data-testid={`text-detail-title-${article.pageid}`}>{article.title}</h2>
-                  {article.thumbnail?.source ? <img className="detail-image" src={article.thumbnail.source} alt={`View of ${article.title}`} data-testid={`img-detail-thumbnail-${article.pageid}`} /> : null}
-                  <p className="detail-extract" data-testid={`text-detail-extract-${article.pageid}`}>{article.extract || 'Wikipedia has not provided an introductory note for this place.'}</p>
-                  <div className="detail-coords" data-testid={`text-detail-coordinates-${article.pageid}`}><MapPin size={13} /> {selected.lat.toFixed(5)}, {selected.lon.toFixed(5)}</div>
-                  <div className="detail-actions">
-                    <a className="wiki-link" href={`https://en.wikipedia.org/?curid=${article.pageid}`} target="_blank" rel="noreferrer" data-testid={`link-wikipedia-${article.pageid}`}>Read the entry <ExternalLink size={13} /></a>
-                    <a className="maps-link" href={`https://www.openstreetmap.org/?mlat=${selected.lat}&mlon=${selected.lon}#map=16/${selected.lat}/${selected.lon}`} target="_blank" rel="noreferrer" data-testid={`link-map-${article.pageid}`}>Open in Maps <ArrowUpRight size={13} /></a>
-                    <button className="detail-close" type="button" data-testid="button-dismiss-detail" onClick={() => setSelectedId(null)}>Dismiss</button>
-                  </div>
-                </div>
-              ) : null}
-            </section>
-          ) : null}
         </aside>
       </div>
     </main>
