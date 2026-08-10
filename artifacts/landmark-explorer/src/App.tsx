@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Toaster } from '@/components/ui/toaster';
 import { Route, Switch, Router as WouterRouter } from 'wouter';
-import { ArrowUpRight, Crosshair, ExternalLink, LocateFixed, MapPin, Navigation, RefreshCw, RotateCcw, ScanSearch, X } from 'lucide-react';
+import { ArrowUpRight, Crosshair, ExternalLink, LocateFixed, MapPin, Navigation, RefreshCw, RotateCcw, ScanSearch, Search, X } from 'lucide-react';
 import L, { type LatLngBounds, type Map as LeafletMap } from 'leaflet';
 import { CircleMarker, MapContainer, Marker, TileLayer, useMap, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -12,6 +12,7 @@ import NotFound from '@/pages/not-found';
 
 type Landmark = { pageid: number; title: string; lat: number; lon: number; dist: number };
 type Article = { title: string; extract?: string; thumbnail?: { source: string; width: number; height: number }; coordinates?: { lat: number; lon: number }[]; pageid: number };
+type PlaceSuggestion = { display_name: string; lat: string; lon: string; type: string };
 type LoadState = 'loading' | 'ready' | 'error';
 type GeoStatus = 'idle' | 'locating' | 'success' | 'error';
 
@@ -19,6 +20,7 @@ const queryClient = new QueryClient();
 const START: [number, number] = [51.5074, -0.1278];
 const START_ZOOM = 13;
 const WIKI_API = 'https://en.wikipedia.org/w/api.php';
+const GEOCODER_API = 'https://nominatim.openstreetmap.org/search';
 
 const markerIcon = (selected: boolean) => L.divIcon({
   className: 'landmark-marker',
@@ -97,6 +99,22 @@ async function getArticle(pageid: number, signal: AbortSignal): Promise<Article>
   return { ...page, pageid };
 }
 
+async function searchPlace(query: string, signal: AbortSignal): Promise<PlaceSuggestion[]> {
+  const params = new URLSearchParams({
+    q: query,
+    format: 'jsonv2',
+    limit: '5',
+    addressdetails: '1',
+    'accept-language': 'en',
+  });
+  const response = await fetch(`${GEOCODER_API}?${params.toString()}`, {
+    signal,
+    headers: { Accept: 'application/json' },
+  });
+  if (!response.ok) throw new Error(`Place search returned ${response.status}`);
+  return await response.json() as PlaceSuggestion[];
+}
+
 function MapViewportWatcher({ onSettled }: { onSettled: (bounds: LatLngBounds, center: L.LatLng) => void }) {
   const map = useMap();
   const callbackRef = useRef(onSettled);
@@ -170,6 +188,9 @@ function AppHome() {
   const [articleError, setArticleError] = useState('');
   const [geoStatus, setGeoStatus] = useState<GeoStatus>('idle');
   const [viewportLabel, setViewportLabel] = useState('Central London');
+  const [placeQuery, setPlaceQuery] = useState('');
+  const [placeState, setPlaceState] = useState<LoadState>('ready');
+  const [placeError, setPlaceError] = useState('');
 
   const fetchForBounds = useCallback((bounds: LatLngBounds, center: L.LatLng) => {
     const currentRequest = ++requestId.current;
@@ -219,7 +240,36 @@ function AppHome() {
 
   const resetView = () => {
     setSelectedId(null);
+    setGeoStatus('idle');
+    setError('');
     mapRef.current?.setView(START, START_ZOOM, { animate: true });
+  };
+
+  const handlePlaceSearch = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const query = placeQuery.trim();
+    if (!query || !mapRef.current) return;
+
+    const controller = new AbortController();
+    setPlaceState('loading');
+    setPlaceError('');
+    searchPlace(query, controller.signal).then((places) => {
+      const place = places[0];
+      if (!place) {
+        setPlaceState('error');
+        setPlaceError(`No place found for “${query}”. Try a city, town, or landmark.`);
+        return;
+      }
+      setPlaceState('ready');
+      setGeoStatus('idle');
+      setError('');
+      setSelectedId(null);
+      mapRef.current?.setView([Number(place.lat), Number(place.lon)], 13, { animate: true });
+    }).catch((reason: unknown) => {
+      if ((reason as { name?: string }).name === 'AbortError') return;
+      setPlaceState('error');
+      setPlaceError('Place search is unavailable right now. Check your connection and try again.');
+    });
   };
 
   const locateUser = () => {
@@ -232,11 +282,17 @@ function AppHome() {
     navigator.geolocation.getCurrentPosition(
       (position) => {
         setGeoStatus('success');
+        setError('');
         mapRef.current?.flyTo([position.coords.latitude, position.coords.longitude], 14, { duration: 1 });
       },
-      () => {
+      (positionError) => {
         setGeoStatus('error');
-        setError('Location permission was not granted. You can still explore by moving the map.');
+        const message = positionError.code === 1
+          ? 'Location permission was blocked. Allow location access for this site, then try again.'
+          : positionError.code === 2
+            ? 'Your location could not be determined. Check device location services and try again.'
+            : 'Location took too long to respond. Check your connection and try again.';
+        setError(message);
       },
       { enableHighAccuracy: false, timeout: 9000, maximumAge: 120000 },
     );
@@ -278,7 +334,7 @@ function AppHome() {
               <div className="map-caption-value" data-testid="text-map-viewport">{viewportLabel}</div>
             </div>
             <div className="map-actions">
-              <button className="map-action" type="button" title="Use my location" aria-label="Use my location" data-testid="button-use-location" onClick={locateUser} disabled={geoStatus === 'locating'}>
+              <button className={`map-action ${geoStatus === 'error' ? 'has-error' : ''}`} type="button" title="Use my location" aria-label="Use my location" data-testid="button-use-location" onClick={locateUser} disabled={geoStatus === 'locating'}>
                 <LocateFixed size={17} className={geoStatus === 'locating' ? 'animate-pulse' : ''} />
               </button>
               <button className="map-action" type="button" title="Reset to central London" aria-label="Reset to central London" data-testid="button-reset-view" onClick={resetView}>
@@ -286,6 +342,12 @@ function AppHome() {
               </button>
             </div>
           </div>
+          {geoStatus === 'error' && error ? (
+            <div className="map-notice" role="alert" data-testid="status-location-error">
+              <div><strong>Location unavailable</strong><span>{error}</span></div>
+              <button type="button" onClick={locateUser}>Try again</button>
+            </div>
+          ) : null}
           <div className="map-status" data-testid="status-landmark-count">{mapStatus}</div>
         </section>
 
@@ -293,10 +355,24 @@ function AppHome() {
           <div className="results-head">
             <div className="eyebrow">Dispatch 001 · Live from Wikipedia</div>
             <h1 className="results-title">What is worth<br />a closer look?</h1>
-            <p className="results-intro">Pan across the map and the field guide follows. Each pin is a place with a page, a past, and a reason to pause.</p>
+            <p className="results-intro">Search a city or pan the map. Each result is a nearby place with a Wikipedia page—not a paid or curated tourist ranking.</p>
+            <form className="place-search" onSubmit={handlePlaceSearch} role="search">
+              <Search size={16} aria-hidden="true" />
+              <input
+                value={placeQuery}
+                onChange={(event) => setPlaceQuery(event.target.value)}
+                placeholder="Search a city or place"
+                aria-label="Search a city or place"
+                data-testid="input-place-search"
+              />
+              <button type="submit" disabled={placeState === 'loading'} data-testid="button-place-search">
+                {placeState === 'loading' ? 'Finding…' : 'Go'}
+              </button>
+            </form>
+            {placeState === 'error' ? <div className="search-error" role="alert" data-testid="status-place-search-error">{placeError}</div> : null}
             <div className="result-meta">
               <div className="count-label"><span className="count-number" data-testid="text-landmark-count">{landmarks.length}</span> notable places nearby</div>
-              <div className="viewport-chip" data-testid="text-data-source">GEOSEARCH / 10 KM</div>
+              <div className="viewport-chip" data-testid="text-data-source">WIKIPEDIA / MAP AREA</div>
             </div>
           </div>
 
@@ -361,7 +437,6 @@ function AppHome() {
           ) : null}
         </aside>
       </div>
-      {geoStatus === 'error' && error ? <div className="sr-only" data-testid="status-location-error">{error}</div> : null}
     </main>
   );
 }
