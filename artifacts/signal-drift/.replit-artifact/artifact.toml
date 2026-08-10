@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/signal-drift/"
+title = "Signal Drift"
+description = "A fast, replayable browser game about steering a fragile signal through shifting fields, chaining near-misses, and beating your best run."
+version = "1.0.0"
+id = "artifacts/signal-drift"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/signal-drift/" ]
+localPort = 21537
+
+[services.development]
+run = "pnpm --filter @workspace/signal-drift run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/signal-drift", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/signal-drift/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "21537"
+BASE_PATH = "/signal-drift/"
