@@ -10,7 +10,16 @@ import 'leaflet/dist/leaflet.css';
 import '@/index.css';
 import NotFound from '@/pages/not-found';
 
-type Landmark = { pageid: number; title: string; lat: number; lon: number; dist: number; isTourist: boolean };
+type Landmark = {
+  pageid: number;
+  title: string;
+  lat: number;
+  lon: number;
+  dist: number;
+  isTourist: boolean;
+  description?: string;
+  thumbnail?: { source: string; width: number; height: number };
+};
 type Article = { title: string; extract?: string; thumbnail?: { source: string; width: number; height: number }; coordinates?: { lat: number; lon: number }[]; pageid: number };
 type PlaceSuggestion = { display_name: string; lat: string; lon: string; type: string };
 type LoadState = 'loading' | 'ready' | 'error';
@@ -80,7 +89,12 @@ async function getLandmarks(bounds: LatLngBounds, signal: AbortSignal): Promise<
   const metadataParams = new URLSearchParams({
     action: 'query',
     pageids: nearby.map(({ pageid }) => String(pageid)).join('|'),
-    prop: 'categories|description',
+    prop: 'categories|description|pageimages|extracts',
+    exintro: '1',
+    explaintext: '1',
+    exchars: '180',
+    piprop: 'thumbnail',
+    pithumbsize: '320',
     cllimit: 'max',
     clshow: '!hidden',
     format: 'json',
@@ -93,6 +107,8 @@ async function getLandmarks(bounds: LatLngBounds, signal: AbortSignal): Promise<
       query?: {
         pages?: Record<string, {
           description?: string;
+          extract?: string;
+          thumbnail?: { source: string; width: number; height: number };
           categories?: { title: string }[];
         }>;
       };
@@ -102,9 +118,15 @@ async function getLandmarks(bounds: LatLngBounds, signal: AbortSignal): Promise<
       const signals = [
         place.title,
         page?.description ?? '',
+        page?.extract ?? '',
         ...(page?.categories ?? []).map(({ title }) => title),
       ].join(' ');
-      return { ...place, isTourist: isLikelyTourist(signals) };
+      return {
+        ...place,
+        description: page?.description || page?.extract,
+        thumbnail: page?.thumbnail,
+        isTourist: isLikelyTourist(signals),
+      };
     });
   } catch (reason: unknown) {
     if ((reason as { name?: string }).name === 'AbortError') throw reason;
@@ -455,13 +477,21 @@ function AppHome() {
                 key={landmark.pageid}
                 data-testid={`button-landmark-${landmark.pageid}`}
                 onClick={() => selectLandmark(landmark)}
-              >
-                <span className="landmark-index">{String(index + 1).padStart(2, '0')}</span>
-                <span>
-                  <span className="landmark-name" data-testid={`text-landmark-title-${landmark.pageid}`}>{landmark.title}</span>
-                   <span className={`landmark-tag ${landmark.isTourist ? 'is-tourist' : ''}`}>{landmark.isTourist ? 'Tourist place' : 'Nearby Wikipedia place'}</span>
-                  <span className="landmark-coords" data-testid={`text-landmark-coordinates-${landmark.pageid}`}>{formatCoordinate(landmark.lat, landmark.lon)}</span>
-                </span>
+                >
+                  <span className="landmark-index">{String(index + 1).padStart(2, '0')}</span>
+                  <span className="landmark-card-content">
+                    {landmark.thumbnail?.source ? (
+                      <img className="landmark-thumb" src={landmark.thumbnail.source} alt="" loading="lazy" />
+                    ) : (
+                      <span className="landmark-thumb landmark-thumb-empty" aria-hidden="true"><MapPin size={17} /></span>
+                    )}
+                    <span className="landmark-card-copy">
+                      <span className="landmark-name" data-testid={`text-landmark-title-${landmark.pageid}`}>{landmark.title}</span>
+                      <span className={`landmark-tag ${landmark.isTourist ? 'is-tourist' : ''}`}>{landmark.isTourist ? 'Tourist place' : 'Nearby Wikipedia place'}</span>
+                      {landmark.description ? <span className="landmark-description">{landmark.description}</span> : null}
+                      <span className="landmark-coords" data-testid={`text-landmark-coordinates-${landmark.pageid}`}>{formatCoordinate(landmark.lat, landmark.lon)}</span>
+                    </span>
+                  </span>
                 <ArrowUpRight size={15} className="landmark-arrow" />
               </button>
             ))}
@@ -481,7 +511,8 @@ function AppHome() {
                   <p className="detail-extract" data-testid={`text-detail-extract-${article.pageid}`}>{article.extract || 'Wikipedia has not provided an introductory note for this place.'}</p>
                   <div className="detail-coords" data-testid={`text-detail-coordinates-${article.pageid}`}><MapPin size={13} /> {selected.lat.toFixed(5)}, {selected.lon.toFixed(5)}</div>
                   <div className="detail-actions">
-                    <a className="wiki-link" href={`https://en.wikipedia.org/?curid=${article.pageid}`} target="_blank" rel="noreferrer" data-testid={`link-wikipedia-${article.pageid}`}>Read on Wikipedia <ExternalLink size={13} /></a>
+                    <a className="wiki-link" href={`https://en.wikipedia.org/?curid=${article.pageid}`} target="_blank" rel="noreferrer" data-testid={`link-wikipedia-${article.pageid}`}>Read the entry <ExternalLink size={13} /></a>
+                    <a className="maps-link" href={`https://www.openstreetmap.org/?mlat=${selected.lat}&mlon=${selected.lon}#map=16/${selected.lat}/${selected.lon}`} target="_blank" rel="noreferrer" data-testid={`link-map-${article.pageid}`}>Open in Maps <ArrowUpRight size={13} /></a>
                     <button className="detail-close" type="button" data-testid="button-dismiss-detail" onClick={() => setSelectedId(null)}>Dismiss</button>
                   </div>
                 </div>

@@ -211,7 +211,7 @@ button { font: inherit; }
 .result-filters button:hover, .result-filters button.is-active { border-color: #b28a39; background: #eee3c5; color: hsl(var(--primary)); }
 .landmark-list { min-height: 0; flex: 1; overflow-y: auto; padding: 8px 14px 22px; scrollbar-color: #c9bd9e transparent; }
 .landmark-card {
-  position: relative; display: grid; grid-template-columns: 36px minmax(0,1fr) 16px; gap: 12px; align-items: start;
+  position: relative; display: grid; grid-template-columns: 27px minmax(0,1fr) 16px; gap: 10px; align-items: start;
   width: 100%; padding: 17px 9px; border: 0; border-bottom: 1px solid hsl(var(--card-border));
   text-align: left; color: hsl(var(--foreground)); background: transparent; cursor: pointer;
   transition: background-color .2s ease, padding-left .2s ease;
@@ -219,9 +219,14 @@ button { font: inherit; }
 .landmark-card:hover { background: hsl(var(--secondary)); padding-left: 13px; }
 .landmark-card.is-selected { background: #eee3c5; }
 .landmark-index { font-family: var(--app-font-mono); font-size: 11px; color: #a26b0a; padding-top: 2px; }
+.landmark-card-content { display: grid; grid-template-columns: 58px minmax(0, 1fr); gap: 11px; min-width: 0; }
+.landmark-thumb { width: 58px; height: 58px; object-fit: cover; display: block; border-radius: 3px; background: #ddd4c0; filter: saturate(.78); }
+.landmark-thumb-empty { display: grid; place-items: center; color: #9a680e; border: 1px solid #cdbb91; }
+.landmark-card-copy { min-width: 0; }
 .landmark-name { font-family: var(--app-font-serif); font-size: 20px; line-height: 1.08; font-weight: 500; }
 .landmark-tag { display: block; margin-top: 6px; color: #8b8577; font-size: 9px; letter-spacing: .08em; text-transform: uppercase; }
 .landmark-tag.is-tourist { color: #9a680e; }
+.landmark-description { display: -webkit-box; margin-top: 5px; overflow: hidden; color: #77705f; font-size: 11px; line-height: 1.3; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .landmark-coords { margin-top: 7px; font-family: var(--app-font-mono); font-size: 10px; color: hsl(var(--muted-foreground)); }
 .landmark-arrow { color: #a26b0a; margin-top: 3px; transition: transform .2s ease; }
 .landmark-card:hover .landmark-arrow, .landmark-card.is-selected .landmark-arrow { transform: translateX(3px); }
@@ -243,7 +248,9 @@ button { font: inherit; }
 .detail-image { width: 100%; height: 132px; object-fit: cover; display: block; filter: saturate(.75) sepia(.12); margin-bottom: 14px; }
 .detail-extract { color: #585a56; font-size: 13px; line-height: 1.55; margin: 0 0 13px; }
 .detail-coords { display: flex; align-items: center; gap: 7px; color: #77705f; font-family: var(--app-font-mono); font-size: 10px; margin-bottom: 16px; }
-.detail-actions { display: flex; align-items: center; gap: 12px; }
+.detail-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; }
+.maps-link { display: inline-flex; align-items: center; gap: 7px; color: hsl(var(--primary)); font-size: 11px; text-decoration: none; }
+.maps-link:hover { color: #9a680e; text-decoration: underline; }
 .detail-close { border: 0; background: none; color: #706b5e; font-size: 11px; cursor: pointer; padding: 8px 0; }
 .detail-loading { padding: 20px clamp(20px, 3vw, 36px); }
 .detail-loading .skeleton-line { background: #ddcfaf; }
