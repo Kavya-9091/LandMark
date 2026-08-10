@@ -202,6 +202,13 @@ button { font: inherit; }
 .count-label { font-size: 11px; color: hsl(var(--muted-foreground)); }
 .count-number { font-family: var(--app-font-mono); color: hsl(var(--primary)); font-size: 13px; }
 .viewport-chip { color: #746f63; border: 1px solid hsl(var(--card-border)); padding: 6px 8px; font-size: 10px; font-family: var(--app-font-mono); }
+.result-filters { display: flex; gap: 7px; margin-top: 13px; }
+.result-filters button {
+  border: 1px solid hsl(var(--card-border)); background: transparent; color: #746f63;
+  padding: 7px 9px; cursor: pointer; font-size: 11px;
+}
+.result-filters button span { margin-left: 4px; font-family: var(--app-font-mono); font-size: 10px; }
+.result-filters button:hover, .result-filters button.is-active { border-color: #b28a39; background: #eee3c5; color: hsl(var(--primary)); }
 .landmark-list { min-height: 0; flex: 1; overflow-y: auto; padding: 8px 14px 22px; scrollbar-color: #c9bd9e transparent; }
 .landmark-card {
   position: relative; display: grid; grid-template-columns: 36px minmax(0,1fr) 16px; gap: 12px; align-items: start;
@@ -213,6 +220,8 @@ button { font: inherit; }
 .landmark-card.is-selected { background: #eee3c5; }
 .landmark-index { font-family: var(--app-font-mono); font-size: 11px; color: #a26b0a; padding-top: 2px; }
 .landmark-name { font-family: var(--app-font-serif); font-size: 20px; line-height: 1.08; font-weight: 500; }
+.landmark-tag { display: block; margin-top: 6px; color: #8b8577; font-size: 9px; letter-spacing: .08em; text-transform: uppercase; }
+.landmark-tag.is-tourist { color: #9a680e; }
 .landmark-coords { margin-top: 7px; font-family: var(--app-font-mono); font-size: 10px; color: hsl(var(--muted-foreground)); }
 .landmark-arrow { color: #a26b0a; margin-top: 3px; transition: transform .2s ease; }
 .landmark-card:hover .landmark-arrow, .landmark-card.is-selected .landmark-arrow { transform: translateX(3px); }

@@ -10,7 +10,7 @@ import 'leaflet/dist/leaflet.css';
 import '@/index.css';
 import NotFound from '@/pages/not-found';
 
-type Landmark = { pageid: number; title: string; lat: number; lon: number; dist: number };
+type Landmark = { pageid: number; title: string; lat: number; lon: number; dist: number; isTourist: boolean };
 type Article = { title: string; extract?: string; thumbnail?: { source: string; width: number; height: number }; coordinates?: { lat: number; lon: number }[]; pageid: number };
 type PlaceSuggestion = { display_name: string; lat: string; lon: string; type: string };
 type LoadState = 'loading' | 'ready' | 'error';
@@ -71,9 +71,49 @@ async function getLandmarks(bounds: LatLngBounds, signal: AbortSignal): Promise<
   const response = await fetch(`${WIKI_API}?${params.toString()}`, { signal });
   if (!response.ok) throw new Error(`Wikipedia returned ${response.status}`);
   const payload = await response.json() as { query?: { geosearch?: { pageid: number; title: string; lat: number; lon: number; dist: number }[] } };
-  return (payload.query?.geosearch ?? [])
+  const nearby = (payload.query?.geosearch ?? [])
     .filter(({ lat, lon }) => bounds.contains([lat, lon]))
-    .map(({ pageid, title, lat, lon, dist }) => ({ pageid, title, lat, lon, dist }));
+    .map(({ pageid, title, lat, lon, dist }) => ({ pageid, title, lat, lon, dist, isTourist: false }));
+
+  if (!nearby.length) return nearby;
+
+  const metadataParams = new URLSearchParams({
+    action: 'query',
+    pageids: nearby.map(({ pageid }) => String(pageid)).join('|'),
+    prop: 'categories|description',
+    cllimit: 'max',
+    clshow: '!hidden',
+    format: 'json',
+    origin: '*',
+  });
+  try {
+    const metadataResponse = await fetch(`${WIKI_API}?${metadataParams.toString()}`, { signal });
+    if (!metadataResponse.ok) return nearby.map((place) => ({ ...place, isTourist: isLikelyTourist(place.title) }));
+    const metadata = await metadataResponse.json() as {
+      query?: {
+        pages?: Record<string, {
+          description?: string;
+          categories?: { title: string }[];
+        }>;
+      };
+    };
+    return nearby.map((place) => {
+      const page = metadata.query?.pages?.[String(place.pageid)];
+      const signals = [
+        place.title,
+        page?.description ?? '',
+        ...(page?.categories ?? []).map(({ title }) => title),
+      ].join(' ');
+      return { ...place, isTourist: isLikelyTourist(signals) };
+    });
+  } catch (reason: unknown) {
+    if ((reason as { name?: string }).name === 'AbortError') throw reason;
+    return nearby.map((place) => ({ ...place, isTourist: isLikelyTourist(place.title) }));
+  }
+}
+
+function isLikelyTourist(value: string) {
+  return /\b(attraction|landmark|monument|museum|castle|palace|church|cathedral|temple|tower|bridge|park|garden|gallery|theatre|theater|stadium|zoo|aquarium|memorial|historic|heritage|archaeological|observatory|square|beach|waterfall|viewpoint|fort|ruins|abbey|chapel|mosque|synagogue|opera|lighthouse)\b/i.test(value);
 }
 
 async function getArticle(pageid: number, signal: AbortSignal): Promise<Article> {
@@ -191,6 +231,7 @@ function AppHome() {
   const [placeQuery, setPlaceQuery] = useState('');
   const [placeState, setPlaceState] = useState<LoadState>('ready');
   const [placeError, setPlaceError] = useState('');
+  const [touristOnly, setTouristOnly] = useState(false);
 
   const fetchForBounds = useCallback((bounds: LatLngBounds, center: L.LatLng) => {
     const currentRequest = ++requestId.current;
@@ -211,6 +252,11 @@ function AppHome() {
   }, []);
 
   const selected = useMemo(() => landmarks.find((landmark) => landmark.pageid === selectedId) ?? null, [landmarks, selectedId]);
+  const visibleLandmarks = useMemo(
+    () => touristOnly ? landmarks.filter((landmark) => landmark.isTourist) : landmarks,
+    [landmarks, touristOnly],
+  );
+  const touristCount = useMemo(() => landmarks.filter((landmark) => landmark.isTourist).length, [landmarks]);
 
   useEffect(() => {
     if (!selected) {
@@ -300,7 +346,9 @@ function AppHome() {
 
   const mapStatus = landmarkState === 'loading'
     ? 'Reading this corner of the map…'
-    : `${landmarks.length} ${landmarks.length === 1 ? 'landmark' : 'landmarks'} in view`;
+    : touristOnly
+      ? `${visibleLandmarks.length} tourist ${visibleLandmarks.length === 1 ? 'place' : 'places'} in view`
+      : `${landmarks.length} places in view · ${touristCount} tourist picks`;
 
   const formatCoordinate = (latitude: number, longitude: number) => (
     `${Math.abs(latitude).toFixed(4)}° ${latitude >= 0 ? 'N' : 'S'} · ${Math.abs(longitude).toFixed(4)}° ${longitude >= 0 ? 'E' : 'W'}`
@@ -324,7 +372,7 @@ function AppHome() {
           <div className="map-frame">
             <MapErrorBoundary>
               <MapContainer center={START} zoom={START_ZOOM} scrollWheelZoom zoomControl>
-                <MapContent landmarks={landmarks} selectedId={selectedId} onSelect={selectLandmark} mapRef={mapRef} onSettled={fetchForBounds} />
+               <MapContent landmarks={visibleLandmarks} selectedId={selectedId} onSelect={selectLandmark} mapRef={mapRef} onSettled={fetchForBounds} />
               </MapContainer>
             </MapErrorBoundary>
           </div>
@@ -371,8 +419,12 @@ function AppHome() {
             </form>
             {placeState === 'error' ? <div className="search-error" role="alert" data-testid="status-place-search-error">{placeError}</div> : null}
             <div className="result-meta">
-              <div className="count-label"><span className="count-number" data-testid="text-landmark-count">{landmarks.length}</span> notable places nearby</div>
+              <div className="count-label"><span className="count-number" data-testid="text-landmark-count">{visibleLandmarks.length}</span> {touristOnly ? 'tourist places' : 'places'} nearby</div>
               <div className="viewport-chip" data-testid="text-data-source">WIKIPEDIA / MAP AREA</div>
+            </div>
+            <div className="result-filters" role="tablist" aria-label="Place type filter">
+              <button type="button" role="tab" aria-selected={!touristOnly} className={!touristOnly ? 'is-active' : ''} onClick={() => setTouristOnly(false)} data-testid="button-filter-all">All places <span>{landmarks.length}</span></button>
+              <button type="button" role="tab" aria-selected={touristOnly} className={touristOnly ? 'is-active' : ''} onClick={() => setTouristOnly(true)} data-testid="button-filter-tourist">Tourist places <span>{touristCount}</span></button>
             </div>
           </div>
 
@@ -390,13 +442,13 @@ function AppHome() {
                   if (map) fetchForBounds(map.getBounds(), map.getCenter());
                 }}>Try this view again</button>
               </div>
-            ) : landmarks.length === 0 ? (
+            ) : visibleLandmarks.length === 0 ? (
               <div className="empty-state" data-testid="status-landmarks-empty">
                 <div className="empty-compass"><ScanSearch size={22} /></div>
-                <h3>Nothing noted here yet.</h3>
-                <p>Zoom out or drift the map toward a nearby town. The best finds can sit just beyond the frame.</p>
+                <h3>{touristOnly ? 'No tourist places found here yet.' : 'Nothing noted here yet.'}</h3>
+                <p>{touristOnly ? 'Try another city, zoom out, or switch to all nearby Wikipedia places.' : 'Zoom out or drift the map toward a nearby town. The best finds can sit just beyond the frame.'}</p>
               </div>
-            ) : landmarks.map((landmark, index) => (
+            ) : visibleLandmarks.map((landmark, index) => (
               <button
                 type="button"
                 className={`landmark-card motion-in ${selectedId === landmark.pageid ? 'is-selected' : ''}`}
@@ -407,6 +459,7 @@ function AppHome() {
                 <span className="landmark-index">{String(index + 1).padStart(2, '0')}</span>
                 <span>
                   <span className="landmark-name" data-testid={`text-landmark-title-${landmark.pageid}`}>{landmark.title}</span>
+                   <span className={`landmark-tag ${landmark.isTourist ? 'is-tourist' : ''}`}>{landmark.isTourist ? 'Tourist place' : 'Nearby Wikipedia place'}</span>
                   <span className="landmark-coords" data-testid={`text-landmark-coordinates-${landmark.pageid}`}>{formatCoordinate(landmark.lat, landmark.lon)}</span>
                 </span>
                 <ArrowUpRight size={15} className="landmark-arrow" />
