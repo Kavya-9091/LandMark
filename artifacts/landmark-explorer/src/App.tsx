@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Toaster } from '@/components/ui/toaster';
 import { Route, Switch, Router as WouterRouter } from 'wouter';
+import { Chatbot } from '@/components/chatbot/Chatbot';
 import { ArrowUpRight, Crosshair, ExternalLink, LocateFixed, MapPin, Navigation, RefreshCw, RotateCcw, ScanSearch, Search, X } from 'lucide-react';
 import L, { type LatLngBounds, type Map as LeafletMap } from 'leaflet';
 import { CircleMarker, MapContainer, Marker, TileLayer, useMap, useMapEvents } from 'react-leaflet';
@@ -21,7 +22,14 @@ type Landmark = {
   thumbnail?: { source: string; width: number; height: number };
 };
 type Article = { title: string; extract?: string; thumbnail?: { source: string; width: number; height: number }; coordinates?: { lat: number; lon: number }[]; pageid: number };
-type PlaceSuggestion = { display_name: string; lat: string; lon: string; type: string };
+type PlaceSuggestion = {
+  display_name: string;
+  lat: string;
+  lon: string;
+  type: string;
+  class?: string;
+  boundingbox?: [string, string, string, string];
+};
 type LoadState = 'loading' | 'ready' | 'error';
 type GeoStatus = 'idle' | 'locating' | 'success' | 'error';
 
@@ -313,12 +321,12 @@ function AppHome() {
     mapRef.current?.setView(START, START_ZOOM, { animate: true });
   };
 
-  const handlePlaceSearch = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const query = placeQuery.trim();
+  const runPlaceSearch = useCallback((rawQuery: string) => {
+    const query = rawQuery.trim();
     if (!query || !mapRef.current) return;
 
     const controller = new AbortController();
+    setPlaceQuery(query);
     setPlaceState('loading');
     setPlaceError('');
     searchPlace(query, controller.signal).then((places) => {
@@ -332,12 +340,23 @@ function AppHome() {
       setGeoStatus('idle');
       setError('');
       setSelectedId(null);
-      mapRef.current?.setView([Number(place.lat), Number(place.lon)], 13, { animate: true });
+      if (place.boundingbox) {
+        const [south, north, west, east] = place.boundingbox.map(Number);
+        const bounds = L.latLngBounds([south, west], [north, east]);
+        mapRef.current?.fitBounds(bounds, { animate: true, maxZoom: place.class === 'boundary' ? 10 : 14 });
+      } else {
+        mapRef.current?.setView([Number(place.lat), Number(place.lon)], 13, { animate: true });
+      }
     }).catch((reason: unknown) => {
       if ((reason as { name?: string }).name === 'AbortError') return;
       setPlaceState('error');
       setPlaceError('Place search is unavailable right now. Check your connection and try again.');
     });
+  }, []);
+
+  const handlePlaceSearch = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    runPlaceSearch(placeQuery);
   };
 
   const locateUser = () => {
@@ -525,6 +544,7 @@ function AppHome() {
 
         </aside>
       </div>
+      <Chatbot onSearchPlace={runPlaceSearch} />
     </main>
   );
 }

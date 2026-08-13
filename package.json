@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "license": "MIT",
   "scripts": {
-    "preinstall": "sh -c 'rm -f package-lock.json yarn.lock; case \"$npm_config_user_agent\" in pnpm/*) ;; *) echo \"Use pnpm instead\" >&2; exit 1 ;; esac'",
+    "preinstall": "node -e \"const fs = require('fs'); try { fs.unlinkSync('package-lock.json'); } catch(e) {} try { fs.unlinkSync('yarn.lock'); } catch(e) {} if (!process.env.npm_config_user_agent?.includes('pnpm')) { console.error('Use pnpm instead'); process.exit(1); }\"",
     "build": "pnpm run typecheck && pnpm -r --if-present run build",
     "typecheck:libs": "tsc --build",
     "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck"
@@ -13,6 +13,9 @@
     "@replit/connectors-sdk": "^0.4.1"
   },
   "devDependencies": {
+    "@rollup/rollup-win32-x64-msvc": "^4.62.3",
+    "@tailwindcss/oxide-win32-x64-msvc": "^4.3.3",
+    "lightningcss-win32-x64-msvc": "^1.32.0",
     "prettier": "^3.9.6",
     "typescript": "~5.9.3"
   }
